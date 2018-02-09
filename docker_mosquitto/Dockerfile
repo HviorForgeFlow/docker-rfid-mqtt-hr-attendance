@@ -19,17 +19,25 @@ RUN apt-get update && apt-get install -y wget && \
     gpg -a --export 8277CCB49EC5B595F2D2C71361611AE430993623 | apt-key add - && \
     wget -q -O /etc/apt/sources.list.d/mosquitto-jessie.list https://repo.mosquitto.org/debian/mosquitto-jessie.list && \
     apt-get update && apt-get install -y mosquitto mosquitto-clients && \
-    adduser --system --disabled-password --disabled-login mosquitto
+    adduser --system --disabled-password --disabled-login mosquitto && \
+    apt-get update && apt-get install -y ca-certificates && \
+    apt-get update && apt-get install -y openssl
+    apt-get upgrade
 
 RUN mkdir -p /mqtt/config /mqtt/data /mqtt/log
+
+RUN mkdir -p /etc/ssl/certs
+
 COPY config /mqtt/config
+COPY config/ca_certificates/ca_cert.pem /etc/ssl/certs
+
 RUN chown -R mosquitto:mosquitto /mqtt \
     && mosquitto_passwd -U /mqtt/config/passwd 
 VOLUME ["/mqtt/config", "/mqtt/data", "/mqtt/log"]
 
-EXPOSE 1883
+EXPOSE 8883
 
 ADD docker-entrypoint.sh /usr/bin/
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["/usr/sbin/mosquitto", "-c", "/mqtt/config/mosquitto.conf"]
+CMD ["/usr/sbin/mosquitto", "-c", "/mqtt/config/mosquitto.conf","-p","8883"]

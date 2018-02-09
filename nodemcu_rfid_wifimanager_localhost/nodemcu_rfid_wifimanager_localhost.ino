@@ -13,18 +13,20 @@
 #include <PubSubClient.h>
 
 #include <ArduinoJson.h>          //https://github.com/bblanchon/ArduinoJson
-#define RESET_PIN 16
+#define RESET_PIN 16  // -> CHANGE TO D3 - GPIO0
 #define RED_LED 4
 #define GREEN_LED 5
-#define BEEP 15
+#define BEEP 10
 
 #include <SPI.h>
 #include "MFRC522.h"
-#define RST_PIN 0 // RST-PIN for RC522 - RFID - SPI - Modul GPIO0 - D3
-#define SS_PIN  2  // SDA-PIN for RC522 - RFID - SPI - Modul GPIO2 - D4
+#define RST_PIN 0 // RST-PIN for RC522 - RFID - SPI - Modul GPIO0 - D3  --> CHANGE TO D8 - GPIO15?
+#define SS_PIN  2  // SDA-PIN for RC522 - RFID - SPI - Modul GPIO2 - D4  
 
 
-//define your default values here, if there are different values in config.json, they are overwritten.
+//define your default values here, 
+//if there are different values in config.json, 
+//they are overwritten.
 //length should be max size + 1
 char odoo_host[90];
 char odoo_port[6] = "8069";
@@ -33,19 +35,25 @@ char odoo_password[33] = "admin";
 char odoo_database[24];
 
 //MQTT parametros.
-const char* mqtt_server = "192.168.1.36";
-const int mqtt_port = 1883;
+const char* mqtt_server = "192.168.1.37";
+const int mqtt_port = 8883;
 
 //flag for saving data
 bool shouldSaveConfig = false;
 String currentCard = "";
 
+//SHA256: A5:C4:02:C0:3F:0A:A1:8A:9C:30:DE:58:B3:0A:34:2F:A1:42:DD:A9:05:6C:57:A9:4F:2B:DF:C8:55:58:DB:22
+//SHA1: C7:5A:A3:2D:7D:E9:20:59:31:87:B5:BA:E5:A5:23:3D:DF:8A:59:63
+
+const char* mqtt_server_fingerprint = "C7 5A A3 2D 7D E9 20 59 31 87 B5 BA E5 A5 23 3D DF 8A 59 63"; //If it works with SHA1, it can be tested with SHA256
+
 WiFiManager wifiManager;
 MFRC522 mfrc522(SS_PIN, RST_PIN);   // Create MFRC522 instance
 
-WiFiClient espClient;
+WiFiClientSecure espClient;
 //Criando o clientMQTT com o wificlient
 PubSubClient client(espClient);
+//espClient.connect(mqtt_server,mqtt_port);
 
 //callback notifying us of the need to save config
 void saveConfigCallback () {
@@ -58,9 +66,10 @@ void setup() {
   Serial.begin(115200);
   Serial.println();
 
-  pinMode(RESET_PIN, INPUT);
+  pinMode(RESET_PIN, INPUT); // IF FINALLY WE USE THE INTERNAL_PULLUP, SUBSTITUTE FOR pinMode(RESET_PIN, INPUT_PULLUP);
   pinMode(RED_LED, OUTPUT);
   pinMode(GREEN_LED, OUTPUT);
+  pinMode(BEEP, OUTPUT);
   SPI.begin();           // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
 
@@ -72,6 +81,42 @@ void setup() {
 
   if (SPIFFS.begin()) {
     Serial.println("mounted file system");
+    
+    //** TLS CERTIFICATE AND KEY LOAD **//
+
+    if (SPIFFS.exists("/192.168.1.37.crt.der")) {
+      Serial.println("loading cert");
+      File ca = SPIFFS.open("/192.168.1.37.crt.der", "r");
+      if(!ca) {
+        Serial.println("Couldn't load cert");
+        return;  
+      }
+  
+      if(espClient.loadCertificate(ca)) {
+        Serial.println("Loaded Cert");
+      } else {
+        Serial.println("Didn't load cert");
+        return;
+      }
+    }
+
+    if (SPIFFS.exists("/192.168.1.37.key.der")) {
+      Serial.println("loading key");
+      File key = SPIFFS.open("/192.168.1.37.key.der", "r");
+      if(!key) {
+        Serial.println("Couldn't load key");
+        return;  
+      }
+  
+      if(espClient.loadPrivateKey(key)) {
+        Serial.println("Loaded Key");
+      } else {
+        Serial.println("Didn't load Key");
+      }
+    }
+
+    //** CONFIGURATION JSON FILE READ **//
+    
     if (SPIFFS.exists("/config.json")) {
       //file exists, reading and loading
       Serial.println("reading config file");
@@ -200,27 +245,37 @@ void setup() {
 
   client.setCallback(callback);
 
+  //espClient.connect(mqtt_server,mqtt_port);
+
   Serial.println(F("Ready!"));
   Serial.println(F("======================================================"));
   Serial.println(F("Scan for Card and print UID:"));
 }
 
 void conectMqtt() {
-  while (!client.connected()) {
-    Serial.print("ConnectingMQTT ...");
+  espClient.connect(mqtt_server,mqtt_port); //Y si esto es 192.169.1.39??
+  if(espClient.verify(mqtt_server_fingerprint,mqtt_server)){
+    Serial.println("connection checks out");
+    espClient.stop(); //It seems that the connection with the server should be made first to make the verification, so the process is connect-verify-disconnect, and then continue with the PubSub connection
+    while (!client.connected()) {
+      Serial.print("ConnectingMQTT ...");
 
-    //Parameters nodeMCUClient, userMQTT, passwordMQTT
-    if (client.connect("esp8266", "admina", "admin")) {
-      Serial.println("Connected");
-      //Subscriing to topic retorno.
-      client.subscribe("retorno");
-    } else {
-      Serial.print("Error");
-      Serial.print(client.state());
-      Serial.println("Retry in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
+      //Parameters nodeMCUClient, userMQTT, passwordMQTT
+      if (client.connect("esp8266", "mqtt_rfid", "password")) {
+        Serial.println("Connected");
+        //Subscriing to topic retorno.
+        client.subscribe("retorno");
+      } else {
+        Serial.print("Error");
+        Serial.print(client.state());
+        Serial.println("Retry in 5 seconds");
+        // Wait 5 seconds before retrying
+        delay(5000);
+      }
     }
+  } else {
+    espClient.stop();
+    Serial.println("connection doesn't check out");
   }
 }
 

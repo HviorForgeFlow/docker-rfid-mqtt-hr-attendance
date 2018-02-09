@@ -14,6 +14,14 @@ mqtt_id = os.environ.get('MQTTHOST')
 mqtt_user = os.environ.get('MQTTUSER')
 mqtt_pass = os.environ.get('MQTTPASS')
 
+#CLIENT CERTIFICATES AND KEY PATH
+
+ca_certs = "./ca_certs/ca_cert.pem"
+#client_cert = "./certs/172.19.0.3.crt"
+#client_key = "./certs/172.19.0.3.key"
+client_cert = "./certs/python_rfid.pem"
+client_key = "./certs/python_rfid_key.pem"
+
 def connection(host, port, user, user_pw, database):
     global user_password
     user_password = user_pw
@@ -138,9 +146,14 @@ mqttc.on_publish = on_publish
 mqttc.on_subscribe = on_subscribe
 
 # user and password cloudmqtt
-mqttc.username_pw_set(mqtt_user, mqtt_pass)
+#mqttc.username_pw_set(mqtt_user, mqtt_pass)
+
+
+# configure network encryption and authentication options. Enables SSL/TLS support
+mqttc.tls_set(ca_certs,client_cert,client_key,tls_version=2,ciphers=None)
+
 # CLOUDMQTT url where the rows to read stay
-mqttc.connect(mqtt_id, 1883)
+mqttc.connect(mqtt_id, 8883)
 
 # subscribe to topic
 mqttc.subscribe("acesso", 0)

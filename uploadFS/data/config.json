@@ -1,0 +1,7 @@
+{
+  "odoo_host": "192.168.1.37",
+  "odoo_port": "8069",
+  "odoo_user": "admin",
+  "odoo_password": "admin",
+  "odoo_database": "esp8266"
+}
