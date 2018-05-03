@@ -6,8 +6,6 @@ RUN apk add --no-cache gcc libc-dev unixodbc-dev
 
 COPY requirements.txt ./
 
-COPY ./secrets/sensitiveInfo ./secrets/
-
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY RFID_mqtt_client.py ./

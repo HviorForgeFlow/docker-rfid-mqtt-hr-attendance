@@ -14,24 +14,25 @@ import random, time
 
 object_facade = None
 
-d = {}
+host = os.environ.get("ODOO_HOST", "127.0.0.1")
+port = os.environ.get("ODOO_PORT", "8069")
+user_name = os.environ.get("ODOO_USER_NAME", "rfid_attendance")
+user_password = os.environ.get("ODOO_PASSWORD", "admin")
+dbname = os.environ.get("PGDATABASE", "10.0-test-hr_attendance_rfid")
+mqtt_id = os.environ.get("MQTTHOST", "127.0.0.1")
+mqtt_user = os.environ.get("MQTTUSER", "python_rfid")
+mqtt_pass = os.environ.get("MQTTPASS", "1234")
+key = os.environ.get("KEY", "M1k3y1sdAb3St0n4")
 
-with open("./secrets/sensitiveInfo", "r") as sensInfo:
-
-    for line in sensInfo:
-        key,val = line.split(":")
-        d[str(key)] = val[:-1]
-        print("KEY: " + str(key) + "|" + "VAL: " + str(val))
-
-host = d["host"]
-port = d["port"]
-user_name = d["user_name"]
-user_password = d["user_password"]
-dbname = d["dbname"]
-mqtt_id = d["mqtt_id"]
-mqtt_user = d["mqtt_user"]
-mqtt_pass = d["mqtt_pass"]
-key = d["key"]
+print "host: " + host
+print "port: " + port
+print "user_name: " + user_name
+print "user_password: " + user_password
+print "dbname: " + dbname
+print "mqtt_id: " + mqtt_id
+print "mqtt_user: " + mqtt_user
+print "mqtt_pass: " + mqtt_pass
+print "key: " + key
 
 cnt = 0
 r = 0
@@ -53,6 +54,10 @@ def connection(host, port, user, user_pw, database):
         url_template = "http://%s/xmlrpc/%s"
         login_facade = xmlrpclib.ServerProxy(url_template % (
         host.replace("http://", ""), 'common'))
+    elif str(port) == '':
+        url_template = "http://%s/xmlrpc/%s"
+        login_facade = xmlrpclib.ServerProxy(url_template % (
+        host.replace("http://", ""), 'common'))
     else:
         url_template = "http://%s:%s/xmlrpc/%s"
         print "URL: ", url_template % (host.replace(
@@ -63,7 +68,7 @@ def connection(host, port, user, user_pw, database):
     user_id = login_facade.login(database, user, user_pw)
     print "USER: ", user_id
     global object_facade
-    if str(port) in ['443', '80']:
+    if str(port) in ['443', '80', '']:
         object_facade = xmlrpclib.ServerProxy(url_template % (
             host, 'object'))
     else:
